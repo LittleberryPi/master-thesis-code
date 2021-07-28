@@ -1,0 +1,18 @@
+.vscode
+
+# Output files of HBSS
+*.bin
+*.aux
+*.prv
+*.pub
+*.sig
+*.key
+*.data
+
+*.o
+*.a
+LMS_TPM/tpm_demo_default
+LMS_TPM/tpm_demo_tpm
+XMSS_TPM/public.key
+XMSS_TPM/keypair
+XMSS_TPM/bds.data
