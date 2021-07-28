@@ -2,13 +2,13 @@ AR = /usr/bin/ar
 CC = /usr/bin/gcc
 CFLAGS = -Wall -O3
 CFLAGS += -DTPM_POSIX -DTPM_TPM20
-INCLUDES += -I/home/gialinh/Documents/Git\ Repositories/master-thesis-code/TPM/ibmtss1.6.0/utils
+INCLUDES += -I<directory to IBM TSS library, for example: home/user/ibmtss1.6.0/utils>
 
 # link - common flags flags TSS library and applications
-LDFLAGS += -L/home/gialinh/Documents/Git\ Repositories/master-thesis-code/TPM/ibmtss1.6.0/utils
+LDFLAGS += -L<directory to IBM TSS library, for example: home/user/ibmtss1.6.0/utils>
 
 # hardening flags for linking executables
-LDAFLAGS += -pie -Wl,-z,now -Wl,-rpath,/home/gialinh/Documents/Git\ Repositories/master-thesis-code/TPM/ibmtss1.6.0/utils
+LDAFLAGS += -pie -Wl,-z,now -Wl,-rpath,<directory to IBM TSS library, for example: home/user/ibmtss1.6.0/utils>
 LDALIBS +=  -libmtssutils -libmtss
 
 
