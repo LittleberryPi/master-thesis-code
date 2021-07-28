@@ -1,4 +1,7 @@
-## XMSS reference code [![Build Status](https://travis-ci.org/XMSS/xmss-reference.svg?branch=master)](https://travis-ci.org/XMSS/xmss-reference)
+# XMSS secure state handling
+This repository is an extension of the [XMSS reference code](https://github.com/XMSS/xmss-reference). The code is extended with a reservation function (https://eprint.iacr.org/2016/357.pdf), a linkage to a TPM and a recovery option for the BDS data. In order to communicate with the TPM, code from the [IBM TSS 1.6.0 library](https://sourceforge.net/projects/ibmtpm20tss/) was used. The library is not included in this repository.
+
+# XMSS reference code [![Build Status](https://travis-ci.org/XMSS/xmss-reference.svg?branch=master)](https://travis-ci.org/XMSS/xmss-reference) (Original README.md)
 
 This repository contains the reference implementation that accompanies [RFC 8391: _"XMSS: eXtended Merkle Signature Scheme"_](https://tools.ietf.org/html/rfc8391).
 
