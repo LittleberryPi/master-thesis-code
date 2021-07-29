@@ -65,7 +65,7 @@ int main(int argc, char **argv)
     unsigned int bds_addr = XMSS_OID_LEN + sk_data_size;
     unsigned int bds_size = params.sk_bytes - sk_data_size;
     unsigned int total_bds_size = bds_size + params.index_bytes;
-    unsigned int total_bds_next_size = params.index_bytes + params.bds_next_bytes;
+    unsigned int total_bds_reserved_size = params.index_bytes + params.bds_state_bytes;
     unsigned int autoreserve = atoi(argv[2]);
     unsigned int nr_of_hmaced_bds_layers = 0;
 
@@ -96,7 +96,7 @@ int main(int argc, char **argv)
         if (XMSS_OID_LEN + params.sk_bytes > bds_addr) { // We're in fast mode
             fwrite(pk, XMSS_OID_LEN + params.pk_bytes, 1, keypair_file);
             if (autoreserve > 0) // we reserve and need BDS INDEX | BDS NEXT | BDS NEXT INDEX
-                fwrite(sk, XMSS_OID_LEN + params.sk_bytes + params.index_bytes + total_bds_next_size, 1, keypair_file);
+                fwrite(sk, XMSS_OID_LEN + params.sk_bytes + params.index_bytes + total_bds_reserved_size, 1, keypair_file);
             else // we don´t reserve but need BDS INDEX
                 fwrite(sk, XMSS_OID_LEN + params.sk_bytes + params.index_bytes, 1, keypair_file);
         }
@@ -255,8 +255,8 @@ int main(int argc, char **argv)
         /* Write the BDS data to a file (only in fast mode) */
         if (XMSS_OID_LEN + params.sk_bytes > bds_addr) {
             FILE *f_bds = fopen( "bds.data", "w+" );
-            if (autoreserve > 0) // write bds_next data too
-                fwrite(sk + bds_addr, total_bds_size + total_bds_next_size, 1, f_bds);
+            if (autoreserve > 0) // write bds_reserved data too
+                fwrite(sk + bds_addr, total_bds_size + total_bds_reserved_size, 1, f_bds);
             else // only write bds data
                 fwrite(sk + bds_addr, total_bds_size, 1, f_bds);
             fclose(f_bds);

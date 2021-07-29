@@ -109,13 +109,13 @@ int main(int argc, char **argv) {
     unsigned int sk_data_size = params.index_bytes + 4*params.n;
     unsigned int sk_seed_addr = XMSS_OID_LEN + params.index_bytes;
     unsigned int bds_addr = XMSS_OID_LEN + sk_data_size;
-    unsigned int bds_next_idx_addr = XMSS_OID_LEN + params.sk_bytes + params.index_bytes;
-    unsigned int bds_next_data_addr = XMSS_OID_LEN + params.sk_bytes + params.index_bytes + params.index_bytes;
-    unsigned int bds_NEXT_layer_addr = bds_addr + (params.d*params.bds_next_bytes);
-    unsigned int bds_NEXT_layer_size = (params.d-1)*params.bds_next_bytes;
+    unsigned int bds_reserved_idx_addr = XMSS_OID_LEN + params.sk_bytes + params.index_bytes;
+    unsigned int bds_reserved_data_addr = XMSS_OID_LEN + params.sk_bytes + params.index_bytes + params.index_bytes;
+    unsigned int bds_NEXT_layer_addr = bds_addr + (params.d*params.bds_state_bytes);
+    unsigned int bds_NEXT_layer_size = (params.d-1)*params.bds_state_bytes;
     unsigned int bds_size = params.sk_bytes - sk_data_size;
     unsigned int total_bds_size = bds_size + params.index_bytes;
-    unsigned int total_bds_next_size = params.index_bytes + params.bds_next_bytes;
+    unsigned int total_bds_reserved_size = params.index_bytes + params.bds_state_bytes;
     unsigned int nr_of_hmaced_bds_layers = 0;
     unsigned int bds_data_corrupted = 0;
     
@@ -161,7 +161,7 @@ int main(int argc, char **argv) {
     unsigned char *sk;
     unsigned char *hmac = NULL;
     if (XMSS_OID_LEN + params.sk_bytes > bds_addr) { // We're in fast mode
-        if (autoreserve > 0) { // use bds_next
+        if (autoreserve > 0) { // use bds_reserved
             sk = malloc(XMSS_OID_LEN + params.sk_bytes + params.index_bytes + total_bds_size);
             // main trees + NEXT trees if exists + WOTS sigs if exists + next tree
             nr_of_hmaced_bds_layers = params.d + (params.d > 1 ? 1 : 0) + (params.d-1) + 1;
@@ -193,10 +193,10 @@ int main(int argc, char **argv) {
             if (size_read < params.index_bytes) {
                 bds_data_corrupted = 1;
             }
-            else if (autoreserve > 0) { // read in bds_next too
-                size_read = fread(sk + bds_next_idx_addr, 1, total_bds_next_size, keypair_file);
+            else if (autoreserve > 0) { // read in bds_reserved too
+                size_read = fread(sk + bds_reserved_idx_addr, 1, total_bds_reserved_size, keypair_file);
                 // Verify whether file is deleted/shrinked
-                if (size_read < total_bds_next_size) {
+                if (size_read < total_bds_reserved_size) {
                     bds_data_corrupted = 1;
                 }
             }
@@ -256,10 +256,10 @@ int main(int argc, char **argv) {
                 if (size_read < total_bds_size) {
                     bds_data_corrupted = 1;
                 }
-                // Read in bds_next data
+                // Read in bds_reserved data
                 else if (autoreserve > 0) {
-                    size_read = fread(sk + bds_next_idx_addr, 1, total_bds_next_size, f_bds);
-                    if (size_read < total_bds_next_size) {
+                    size_read = fread(sk + bds_reserved_idx_addr, 1, total_bds_reserved_size, f_bds);
+                    if (size_read < total_bds_reserved_size) {
                         bds_data_corrupted = 1;
                     }
                 }
@@ -282,12 +282,12 @@ int main(int argc, char **argv) {
     /************************************
      * Set some variables               *
      ************************************/
-    // If we are in fast mode and we reserve, set the rest of bds_next to be similar to bds
+    // If we are in fast mode and we reserve, set the rest of bds_reserved to be similar to bds
     if (XMSS_OID_LEN + params.sk_bytes > bds_addr && autoreserve > 0) {
-        unsigned int bds_next_data_layer1_addr = bds_next_data_addr + params.bds_next_bytes;
-        unsigned int bds_data_layer1_addr = bds_addr + params.bds_next_bytes;
-        unsigned int bds_no_layer0_size = bds_size - params.bds_next_bytes;
-        memcpy(sk + bds_next_data_layer1_addr, sk + bds_data_layer1_addr, bds_no_layer0_size);
+        unsigned int bds_reserved_data_layer1_addr = bds_reserved_data_addr + params.bds_state_bytes;
+        unsigned int bds_data_layer1_addr = bds_addr + params.bds_state_bytes;
+        unsigned int bds_no_layer0_size = bds_size - params.bds_state_bytes;
+        memcpy(sk + bds_reserved_data_layer1_addr, sk + bds_data_layer1_addr, bds_no_layer0_size);
     }
 
     /* Set the reserve count in params by reading index from sk */
@@ -354,12 +354,12 @@ int main(int argc, char **argv) {
             #ifdef DEFAULT_STORAGE
                 FILE *keypair_file = fopen("keypair", "r+b");
                 fseek(keypair_file, XMSS_OID_LEN + params.pk_bytes + bds_addr, SEEK_SET);
-                fwrite(sk + bds_addr, 1, total_bds_size + total_bds_next_size, keypair_file);
+                fwrite(sk + bds_addr, 1, total_bds_size + total_bds_reserved_size, keypair_file);
                 fclose(keypair_file);
             #endif //TPM_STORAGE
             #ifdef TPM_STORAGE
                 FILE *f_bds = fopen( "bds.data", "w+" );
-                fwrite(sk + bds_addr, 1, total_bds_size + total_bds_next_size, f_bds);
+                fwrite(sk + bds_addr, 1, total_bds_size + total_bds_reserved_size, f_bds);
                 fclose(f_bds);
             #endif //TPM_STORAGE
         }
@@ -373,25 +373,25 @@ int main(int argc, char **argv) {
         xmss_reserve_signature(&params, autoreserve+1, reserve_count, sk);
 
         if (XMSS_OID_LEN + params.sk_bytes > bds_addr) { // if we're in fast mode
-            /* bds_next in nv memory = bds_next in memory and 
-            bds in nv memory = bds_next in nv memory */
+            /* bds_reserved in nv memory = bds_reserved in memory and 
+            bds in nv memory = bds_reserved in nv memory */
             unsigned char sk_nv[total_bds_size + total_bds_size];
-            // bds + bds_next in sk_nv = bds + bds_next in sk
+            // bds + bds_reserved in sk_nv = bds + bds_reserved in sk
             memcpy(sk_nv, sk + bds_addr, total_bds_size + total_bds_size); 
-            // bds in sk_nv = bds_next in sk
-            memcpy(sk_nv, sk + bds_next_data_addr, bds_size); 
+            // bds in sk_nv = bds_reserved in sk
+            memcpy(sk_nv, sk + bds_reserved_data_addr, bds_size); 
             // update bds idx
             ull_to_bytes(sk + XMSS_OID_LEN + params.sk_bytes, params.index_bytes, params.reserve_count); 
 
             #ifdef DEFAULT_STORAGE
                 FILE *keypair_file = fopen("keypair", "r+b");
                 fseek(keypair_file, XMSS_OID_LEN + params.pk_bytes + bds_addr, SEEK_SET);
-                fwrite(sk_nv, 1, total_bds_size + total_bds_next_size, keypair_file);
+                fwrite(sk_nv, 1, total_bds_size + total_bds_reserved_size, keypair_file);
                 fclose(keypair_file);
             #endif //TPM_STORAGE
             #ifdef TPM_STORAGE
                 FILE *f_bds = fopen( "bds.data", "r+b" );
-                fwrite(sk_nv, 1, total_bds_size + total_bds_next_size, f_bds);
+                fwrite(sk_nv, 1, total_bds_size + total_bds_reserved_size, f_bds);
                 fclose(f_bds);
             #endif //TPM_STORAGE
 
@@ -404,7 +404,7 @@ int main(int argc, char **argv) {
      * Sign the messages                *
      ************************************/
     for (int file_nr = 3; file_nr < argc; file_nr++) {
-        printf( "Signing %s\n", argv[file_nr] );
+        // printf( "Signing %s\n", argv[file_nr] );
         m_file = fopen(argv[file_nr], "rb");
         if (m_file == NULL) {
             fprintf(stderr, "Could not open message file.\n");
@@ -434,7 +434,7 @@ int main(int argc, char **argv) {
                     keypair_sk_size = XMSS_OID_LEN + params.sk_bytes + params.index_bytes;
                 }
                 else {
-                    keypair_sk_size = XMSS_OID_LEN + params.sk_bytes + params.index_bytes + total_bds_next_size;
+                    keypair_sk_size = XMSS_OID_LEN + params.sk_bytes + params.index_bytes + total_bds_reserved_size;
                 }
                 unsigned char zero_nv[keypair_sk_size];
                 memset(zero_nv, 0, keypair_sk_size);
@@ -473,7 +473,7 @@ int main(int argc, char **argv) {
                     bds_file_size = total_bds_size;
                 }
                 else {
-                    bds_file_size = total_bds_size + total_bds_next_size;
+                    bds_file_size = total_bds_size + total_bds_reserved_size;
                 }
                 unsigned char zero_nv[bds_file_size];
                 memset(zero_nv, 0, bds_file_size);
@@ -482,15 +482,15 @@ int main(int argc, char **argv) {
                 fclose(f_bds);
             #endif // TPM_STORAGE
 
-            // return 1;
+            return 0;
         }
 
         /************************************
          * Update the BDS data              *
          ************************************/
-        // Write bds data to nv memory and if autoreserve>0 also bds_next (only in fast mode)
+        // Write bds data to nv memory and if autoreserve>0 also bds_reserved (only in fast mode)
         if (XMSS_OID_LEN + params.sk_bytes > bds_addr) {
-            if (autoreserve == 0) { // always only update bds in nv memory because we have no bds_next
+            if (autoreserve == 0) { // always only update bds in nv memory because we have no bds_reserved
                 #ifdef DEFAULT_STORAGE
                     FILE *keypair_file = fopen("keypair", "r+b");
                     fseek(keypair_file, XMSS_OID_LEN + params.pk_bytes + bds_addr, SEEK_SET);
@@ -505,14 +505,14 @@ int main(int argc, char **argv) {
 
                 hmac_all_bds_data(&params, sk + bds_addr, sk + sk_seed_addr, hmac, 1, 1);
             }
-            else { // we also have to deal with bds_next
-                if (sigs_reserved > 0) { // bds in nv memory = bds_next in ram
+            else { // we also have to deal with bds_reserved
+                if (sigs_reserved > 0) { // bds in nv memory = bds_reserved in ram
                     // Put BDS next in sk, but BDS NEXT layers are already in sk so keep those
                     unsigned char sk_nv[total_bds_size + total_bds_size];
                     // copy sk bds + bds next to sk_nv
                     memcpy(sk_nv, sk + bds_addr, total_bds_size + total_bds_size); 
-                    // fully bds in sk_nv = fully bds_next in sk
-                    memcpy(sk_nv, sk + bds_next_data_addr, bds_size); 
+                    // fully bds in sk_nv = fully bds_reserved in sk
+                    memcpy(sk_nv, sk + bds_reserved_data_addr, bds_size); 
                     // copy NEXT layers in sk to sk_nv
                     memcpy(sk_nv + (bds_NEXT_layer_addr - bds_addr), sk + bds_NEXT_layer_addr, bds_NEXT_layer_size);
                     // update bds idx
@@ -521,12 +521,12 @@ int main(int argc, char **argv) {
                     #ifdef DEFAULT_STORAGE
                         FILE *keypair_file = fopen("keypair", "r+b");
                         fseek(keypair_file, XMSS_OID_LEN + params.pk_bytes + bds_addr, SEEK_SET);
-                        fwrite(sk_nv, 1, total_bds_size + total_bds_next_size, keypair_file);
+                        fwrite(sk_nv, 1, total_bds_size + total_bds_reserved_size, keypair_file);
                         fclose(keypair_file);
                     #endif //TPM_STORAGE
                     #ifdef TPM_STORAGE
                         FILE *f_bds = fopen( "bds.data", "w+" );
-                        fwrite(sk_nv, 1, total_bds_size + total_bds_next_size, f_bds);
+                        fwrite(sk_nv, 1, total_bds_size + total_bds_reserved_size, f_bds);
                         fclose(f_bds);
                     #endif //TPM_STORAGE
 
@@ -539,11 +539,11 @@ int main(int argc, char **argv) {
                         if (params.d > 1) {
                             // update bds NEXT layers
                             fseek(keypair_file, XMSS_OID_LEN + params.pk_bytes + bds_NEXT_layer_addr, SEEK_SET);
-                            fwrite(sk + bds_NEXT_layer_addr, 1, (params.d-1)*params.bds_next_bytes, keypair_file);
+                            fwrite(sk + bds_NEXT_layer_addr, 1, (params.d-1)*params.bds_state_bytes, keypair_file);
                         }
                         // update BDS next
-                        fseek(keypair_file, XMSS_OID_LEN + params.pk_bytes + bds_next_idx_addr, SEEK_SET);
-                        fwrite(sk + bds_next_idx_addr, 1, total_bds_next_size, keypair_file);
+                        fseek(keypair_file, XMSS_OID_LEN + params.pk_bytes + bds_reserved_idx_addr, SEEK_SET);
+                        fwrite(sk + bds_reserved_idx_addr, 1, total_bds_reserved_size, keypair_file);
                         fclose(keypair_file);
                     #endif //TPM_STORAGE
                     #ifdef TPM_STORAGE
@@ -551,11 +551,11 @@ int main(int argc, char **argv) {
                         if (params.d > 1) {
                             // update bds NEXT layers
                             fseek(f_bds, bds_NEXT_layer_addr - bds_addr, SEEK_SET);
-                            fwrite(sk + bds_NEXT_layer_addr, 1, (params.d-1)*params.bds_next_bytes, f_bds);
+                            fwrite(sk + bds_NEXT_layer_addr, 1, (params.d-1)*params.bds_state_bytes, f_bds);
                         }
                         // update BDS next
                         fseek(f_bds, total_bds_size, SEEK_SET);
-                        fwrite(sk + bds_next_idx_addr, 1, total_bds_next_size, f_bds);
+                        fwrite(sk + bds_reserved_idx_addr, 1, total_bds_reserved_size, f_bds);
                         fclose(f_bds);
                     #endif //TPM_STORAGE
 

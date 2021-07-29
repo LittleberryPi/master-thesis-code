@@ -757,7 +757,7 @@ int xmss_xmssmt_initialize_params(xmss_params *params)
 
     params->pk_bytes = 2 * params->n;
     params->sk_bytes = xmss_xmssmt_core_sk_bytes(params);
-    params->bds_next_bytes = xmss_xmssmt_core_bds_next_bytes(params);
+    params->bds_state_bytes = xmss_xmssmt_core_bds_state_bytes(params);
 
     return 0;
 }

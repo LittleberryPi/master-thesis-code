@@ -32,7 +32,7 @@ typedef struct {
     unsigned int bds_k;
     uint64_t reserve_count; // the index in NV memory
     unsigned int autoreserve; // the number of keys to reserve automatically
-    unsigned long long bds_next_bytes; // the size of bds data for one tree layer (minus NEXT trees and WOTS sigs)
+    unsigned long long bds_state_bytes; // the size of bds data for one tree layer (minus NEXT trees and WOTS sigs)
 } xmss_params;
 
 /**

@@ -603,12 +603,12 @@ void bds_advance_upper_trees(const xmss_params *params, unsigned long long idx,
 
 
 /* Update BDS next */
-void update_bds_next(const xmss_params *params, unsigned long idx, unsigned char *sk,
+void update_bds_reserved(const xmss_params *params, unsigned long idx, unsigned char *sk,
                         unsigned int start_bds_addr, const unsigned char *sk_seed,
                         unsigned char *pub_seed, int bds_round_mode) {
     // idx = idx + params->autoreserve;
     unsigned int bds_addr = params->index_bytes + 4*params->n;
-    unsigned int wots_sigs_addr = bds_addr + (2*params->d - 1)*params->bds_next_bytes;
+    unsigned int wots_sigs_addr = bds_addr + (2*params->d - 1)*params->bds_state_bytes;
     unsigned char *wots_sigs = sk + wots_sigs_addr;
     int needswap_upto = -1;
     unsigned int updates = (params->tree_height - params->bds_k) >> 1;
@@ -622,13 +622,13 @@ void update_bds_next(const xmss_params *params, unsigned long idx, unsigned char
     set_tree_addr(ots_addr, idx_tree);
     set_ots_addr(ots_addr, idx_leaf);
 
-    unsigned int bds_next_idx_addr = params->sk_bytes + params->index_bytes;
-    unsigned int bds_next_data_addr = bds_next_idx_addr + params->index_bytes;
-    unsigned int bds_NEXT0_addr = params->d*params->bds_next_bytes;
+    unsigned int bds_reserved_idx_addr = params->sk_bytes + params->index_bytes;
+    unsigned int bds_reserved_data_addr = bds_reserved_idx_addr + params->index_bytes;
+    unsigned int bds_NEXT0_addr = params->d*params->bds_state_bytes;
 
-    // If we're at the end of the tree, we need to not compute NEXT_0 further, but bds_next = NEXT_0
+    // If we're at the end of the tree, we need to not compute NEXT_0 further, but bds_reserved = NEXT_0
     if (params->d > 1 && ((idx + 1) & ((1ULL << params->tree_height) - 1)) == 0 && (idx < (1ULL << params->full_height) - 1)) {
-        // Update bds_next state
+        // Update bds_reserved state
         /* Prepare an sk copy (sk_nv) which can be written to NV memory, sk is still
         used to create signatures so do not modify sk */
         unsigned int bds_addr = params->index_bytes + 4*params->n;
@@ -648,19 +648,19 @@ void update_bds_next(const xmss_params *params, unsigned long idx, unsigned char
                                 pub_seed, ots_addr, wots_sigs);
         
         xmssmt_serialize_state(params, sk_nv, states, 2*params->d - 1);
-        // Write bds_next to sk
-        memcpy(sk + bds_next_data_addr, sk_nv, bds_size);
-        ull_to_bytes(sk + bds_next_idx_addr, params->index_bytes, idx+1); // set idx bds_next
+        // Write bds_reserved to sk
+        memcpy(sk + bds_reserved_data_addr, sk_nv, bds_size);
+        ull_to_bytes(sk + bds_reserved_idx_addr, params->index_bytes, idx+1); // set idx bds_reserved
         
         // Update BDS NEXT layers into sk
-        memcpy(sk + bds_addr + bds_NEXT0_addr, sk_nv + bds_NEXT0_addr, (params->d-1)*params->bds_next_bytes);
+        memcpy(sk + bds_addr + bds_NEXT0_addr, sk_nv + bds_NEXT0_addr, (params->d-1)*params->bds_state_bytes);
     }
     else if (idx < (1ULL << params->full_height) - 1) {
-        // Update bds_next state
+        // Update bds_reserved state
         /* Prepare an sk copy (sk_nv) which can be written to NV memory, sk is still
         used to create signatures so do not modify sk */
-        unsigned char sk_nv[params->bds_next_bytes];
-        memcpy(sk_nv, sk + start_bds_addr, params->bds_next_bytes);
+        unsigned char sk_nv[params->bds_state_bytes];
+        memcpy(sk_nv, sk + start_bds_addr, params->bds_state_bytes);
         bds_state state_nv; // state_nv is a copy of state
         treehash_inst treehash[params->tree_height - params->bds_k];
         state_nv.treehash = treehash;
@@ -670,24 +670,24 @@ void update_bds_next(const xmss_params *params, unsigned long idx, unsigned char
         bds_treehash_update(params, &state_nv, (params->tree_height - params->bds_k) >> 1, sk_seed, pub_seed, ots_addr);
         // put back the state in sk_nv
         xmss_serialize_state(params, sk_nv, &state_nv, 1); 
-        // Write bds_next to sk
-        memcpy(sk + bds_next_data_addr, sk_nv, params->bds_next_bytes);
-        // set idx bds_next
-        ull_to_bytes(sk + bds_next_idx_addr, params->index_bytes, idx+1); 
+        // Write bds_reserved to sk
+        memcpy(sk + bds_reserved_data_addr, sk_nv, params->bds_state_bytes);
+        // set idx bds_reserved
+        ull_to_bytes(sk + bds_reserved_idx_addr, params->index_bytes, idx+1); 
         if (params->d > 1) {
             // copy whole bds except for bds layer 0, into bds next
             unsigned bds_addr = params->index_bytes + 4*params->n;
-            unsigned int bds_layer1_addr = bds_addr + params->bds_next_bytes;
+            unsigned int bds_layer1_addr = bds_addr + params->bds_state_bytes;
             unsigned int bds_size_wihout_layer0 = params->sk_bytes - bds_layer1_addr;
-            memcpy(sk + bds_next_data_addr + params->bds_next_bytes, sk + bds_layer1_addr, bds_size_wihout_layer0);
+            memcpy(sk + bds_reserved_data_addr + params->bds_state_bytes, sk + bds_layer1_addr, bds_size_wihout_layer0);
         }
     }
 }
 
 
 /* Fast forward the bds state (bulk compute) autoreserve times for reservation 
-function and store this in bds_next */
-void bulk_bds_next(const xmss_params *params, unsigned char *sk, uint64_t start_leaf_idx, 
+function and store this in bds_reserved */
+void bulk_bds_reserved(const xmss_params *params, unsigned char *sk, uint64_t start_leaf_idx, 
         uint64_t goal_index, unsigned int start_bds_addr, int bds_round_mode) {
     // Read seeds from sk_nv
     unsigned char sk_seed[params->n];
@@ -695,15 +695,15 @@ void bulk_bds_next(const xmss_params *params, unsigned char *sk, uint64_t start_
     unsigned char pub_seed[params->n];
     memcpy(pub_seed, sk + params->index_bytes + 3*params->n, params->n);
 
-    unsigned int bds_next_idx_addr = params->sk_bytes + params->index_bytes;
-    unsigned int bds_next_data_addr = bds_next_idx_addr + params->index_bytes;
+    unsigned int bds_reserved_idx_addr = params->sk_bytes + params->index_bytes;
+    unsigned int bds_reserved_data_addr = bds_reserved_idx_addr + params->index_bytes;
 
     // We do one round separately, because if callee is xmss(mt)_core_keypair,
-    // we only need to read bds layer 0 once and then bds_next
-    update_bds_next(params, start_leaf_idx, sk, start_bds_addr, sk_seed, pub_seed, bds_round_mode);
+    // we only need to read bds layer 0 once and then bds_reserved
+    update_bds_reserved(params, start_leaf_idx, sk, start_bds_addr, sk_seed, pub_seed, bds_round_mode);
     // Compute the auth path for start_leaf_idx+sigs_reserved+1
     for (uint64_t idx = start_leaf_idx+1; idx < goal_index; idx++) {
-        update_bds_next(params, idx, sk, bds_next_data_addr, sk_seed, pub_seed, bds_round_mode);
+        update_bds_reserved(params, idx, sk, bds_reserved_data_addr, sk_seed, pub_seed, bds_round_mode);
     }
 }
 
@@ -712,14 +712,14 @@ void bds_reserve(xmss_params *params, unsigned char *sk) {
     // NOTE: sk didn't skip OID_LEN and thus points to OID_LEN
     sk += XMSS_OID_LEN;
 
-    unsigned int bds_next_idx_addr = params->sk_bytes + params->index_bytes;
-    unsigned int bds_next_data_addr = bds_next_idx_addr + params->index_bytes;
+    unsigned int bds_reserved_idx_addr = params->sk_bytes + params->index_bytes;
+    unsigned int bds_reserved_data_addr = bds_reserved_idx_addr + params->index_bytes;
 
-    unsigned long bds_next_idx = bytes_to_ull(sk + bds_next_idx_addr, params->index_bytes);
+    unsigned long bds_reserved_idx = bytes_to_ull(sk + bds_reserved_idx_addr, params->index_bytes);
 
-    if (bds_next_idx < params->reserve_count) { 
-        // we need to advance (bulk compute) bds_next until params->reserve_count
-        bulk_bds_next(params, sk, bds_next_idx, params->reserve_count, bds_next_data_addr, 1);
+    if (bds_reserved_idx < params->reserve_count) { 
+        // we need to advance (bulk compute) bds_reserved until params->reserve_count
+        bulk_bds_reserved(params, sk, bds_reserved_idx, params->reserve_count, bds_reserved_data_addr, 1);
     }
 }
 
@@ -738,7 +738,7 @@ void bulk_NEXT0_tree(const xmss_params *params, unsigned char *sk, uint64_t star
     bds_state state;
     treehash_inst treehash[params->tree_height - params->bds_k];
     state.treehash = treehash;
-    next0_tree_addr = params->index_bytes + 4*params->n + (params->d * params->bds_next_bytes);
+    next0_tree_addr = params->index_bytes + 4*params->n + (params->d * params->bds_state_bytes);
     xmss_deserialize_state(params, &state, sk + next0_tree_addr);
 
     for (uint64_t idx = start_index; idx < goal_index; idx++) { 
@@ -767,7 +767,7 @@ void bulk_upper_NEXT_trees(const xmss_params *params, unsigned char *sk, uint64_
     unsigned char *wots_sigs;
 
     unsigned int bds_addr = params->index_bytes + 4*params->n;
-    unsigned int bds_NEXT0_addr = bds_addr + (params->d*params->bds_next_bytes);
+    unsigned int bds_NEXT0_addr = bds_addr + (params->d*params->bds_state_bytes);
     memcpy(sk_seed, sk+params->index_bytes, params->n);
     memcpy(pub_seed, sk+params->index_bytes+3*params->n, params->n);
 
@@ -811,17 +811,17 @@ void bds_reserve_mt(xmss_params *params, unsigned char *sk) {
     // NOTE: sk didn't skip OID_LEN and thus points to OID_LEN
     sk += XMSS_OID_LEN;
 
-    unsigned int bds_next_idx_addr = params->sk_bytes + params->index_bytes;
-    unsigned int bds_next_data_addr = bds_next_idx_addr + params->index_bytes;
-    unsigned long bds_next_idx = bytes_to_ull(sk + bds_next_idx_addr, params->index_bytes);
+    unsigned int bds_reserved_idx_addr = params->sk_bytes + params->index_bytes;
+    unsigned int bds_reserved_data_addr = bds_reserved_idx_addr + params->index_bytes;
+    unsigned long bds_reserved_idx = bytes_to_ull(sk + bds_reserved_idx_addr, params->index_bytes);
 
-    if (bds_next_idx < params->reserve_count) { 
+    if (bds_reserved_idx < params->reserve_count) { 
         // we need to advance (bulk compute) NEXT_0 tree until params->reserve_count
-        bulk_NEXT0_tree(params, sk, bds_next_idx, params->reserve_count);
+        bulk_NEXT0_tree(params, sk, bds_reserved_idx, params->reserve_count);
         // in case we haven't advanced NEXT_j enough in the layers j > 0, bulk compute them
         bulk_upper_NEXT_trees(params, sk, params->reserve_count-1);
-        // we need to advance (bulk compute) bds_next until params->reserve_count
-        bulk_bds_next(params, sk, bds_next_idx, params->reserve_count, bds_next_data_addr, 1);
+        // we need to advance (bulk compute) bds_reserved until params->reserve_count
+        bulk_bds_reserved(params, sk, bds_reserved_idx, params->reserve_count, bds_reserved_data_addr, 1);
     }
 }
 
@@ -838,11 +838,11 @@ void bds_advance(int sigs_reserved, xmss_params *params,
     uint32_t idx_leaf = idx & ((1 << params->tree_height)-1);
     unsigned int bds_addr = params->index_bytes + 4*params->n;
     unsigned int bds_size = params->sk_bytes - bds_addr;
-    unsigned int bds_next_idx_addr = params->sk_bytes + params->index_bytes;
-    unsigned int bds_next_data_addr = bds_next_idx_addr + params->index_bytes;
-    unsigned int wots_addr = bds_addr + (2*params->d - 1) * params->bds_next_bytes;
+    unsigned int bds_reserved_idx_addr = params->sk_bytes + params->index_bytes;
+    unsigned int bds_reserved_data_addr = bds_reserved_idx_addr + params->index_bytes;
+    unsigned int wots_addr = bds_addr + (2*params->d - 1) * params->bds_state_bytes;
     unsigned long bds_idx = bytes_to_ull(sk + params->sk_bytes, params->index_bytes);
-    unsigned long bds_next_idx = bytes_to_ull(sk + params->sk_bytes + params->index_bytes, params->index_bytes);
+    unsigned long bds_reserved_idx = bytes_to_ull(sk + params->sk_bytes + params->index_bytes, params->index_bytes);
 
     if (sigs_reserved == 0) {
         // Update bds state
@@ -855,12 +855,12 @@ void bds_advance(int sigs_reserved, xmss_params *params,
             bds_advance_upper_trees(params, idx, needswap_upto, states, *updates, sk_seed, 
                             pub_seed, ots_addr, wots_sigs);
         }
-        // If we do reserve, and bds index in nv memory == bds next index in nv memory, then we don't have to update bds_next
+        // If we do reserve, and bds index in nv memory == bds next index in nv memory, then we don't have to update bds_reserved
         // But this is only when we have reserved, so when leaf_idx % autoreserve > 0
         else if (params->autoreserve > 0) {
-            if (bds_idx < bds_next_idx || (idx % (params->autoreserve+1) > 0 && bds_idx == bds_next_idx)) {
+            if (bds_idx < bds_reserved_idx || (idx % (params->autoreserve+1) > 0 && bds_idx == bds_reserved_idx)) {
                 xmssmt_serialize_state(params, sk + bds_addr, states, 2*params->d - 1);
-                update_bds_next(params, idx+params->autoreserve, sk, bds_next_data_addr, sk_seed, pub_seed, 1);
+                update_bds_reserved(params, idx+params->autoreserve, sk, bds_reserved_data_addr, sk_seed, pub_seed, 1);
                 xmssmt_deserialize_state(params, states, &wots_sigs, sk + bds_addr, 2*params->d - 1);
             }
         }
@@ -872,7 +872,7 @@ void bds_advance(int sigs_reserved, xmss_params *params,
             // read in bds (not NEXT)
             FILE *keypair_file = fopen("keypair", "rb");
             fseek(keypair_file, XMSS_OID_LEN + params->pk_bytes + XMSS_OID_LEN + bds_addr, SEEK_SET);
-            fread(sk + bds_addr, 1, params->d * params->bds_next_bytes, keypair_file); 
+            fread(sk + bds_addr, 1, params->d * params->bds_state_bytes, keypair_file); 
             // read in wots sigs
             if (params->d > 1) {
                 fseek(keypair_file, XMSS_OID_LEN + params->pk_bytes + XMSS_OID_LEN + wots_addr, SEEK_SET);
@@ -886,7 +886,7 @@ void bds_advance(int sigs_reserved, xmss_params *params,
         #ifdef TPM_STORAGE
             // read in bds (not NEXT)
             FILE *f_bds = fopen( "bds.data", "rb" );
-            fread(sk + bds_addr, 1, params->d * params->bds_next_bytes, f_bds); 
+            fread(sk + bds_addr, 1, params->d * params->bds_state_bytes, f_bds); 
             // read in wots sigs
             if (params->d > 1) {
                 fseek(f_bds, wots_addr - bds_addr, SEEK_SET);
@@ -898,7 +898,7 @@ void bds_advance(int sigs_reserved, xmss_params *params,
             fclose(f_bds);
         #endif //TPM_STORAGE
 
-        update_bds_next(params, idx+params->autoreserve, sk, bds_next_data_addr, sk_seed, pub_seed, 1);
+        update_bds_reserved(params, idx+params->autoreserve, sk, bds_reserved_data_addr, sk_seed, pub_seed, 1);
         xmssmt_deserialize_state(params, states, &wots_sigs, sk + bds_addr, 2*params->d - 1);
     }
     else if (sigs_reserved > 0) {
@@ -906,7 +906,7 @@ void bds_advance(int sigs_reserved, xmss_params *params,
         *updates = bds_treehash_update(params, &states[0], *updates, sk_seed, pub_seed, ots_addr);
 
         xmssmt_serialize_state(params, sk + bds_addr, states, 2*params->d - 1);
-        update_bds_next(params, idx+params->autoreserve, sk, bds_next_data_addr, sk_seed, pub_seed, 1);
+        update_bds_reserved(params, idx+params->autoreserve, sk, bds_reserved_data_addr, sk_seed, pub_seed, 1);
         xmssmt_deserialize_state(params, states, &wots_sigs, sk + bds_addr, 2*params->d - 1);
     }
 }
@@ -938,7 +938,7 @@ unsigned long long xmss_xmssmt_core_sk_bytes(const xmss_params *params)
  * Given a set of parameters, this function returns the the bds NEXT size of the 
  * bottom layer
  */
-unsigned long long xmss_xmssmt_core_bds_next_bytes(const xmss_params *params)
+unsigned long long xmss_xmssmt_core_bds_state_bytes(const xmss_params *params)
 {
     return (params->tree_height + 1) * params->n
         + 4
@@ -1214,7 +1214,7 @@ int core_recover_bds_data(xmss_params *params, unsigned char *sk, unsigned int *
     if (params->autoreserve > 0) {
         is_corrupt = is_layer_corrupt(params, corrupted_layers, RESERVED, 0);
         if (is_corrupt) {
-            bulk_bds_next(params, sk, idx, idx+params->autoreserve+1, params->index_bytes + 4*params->n, 1);
+            bulk_bds_reserved(params, sk, idx, idx+params->autoreserve+1, params->index_bytes + 4*params->n, 1);
         }
     }
 
@@ -1268,8 +1268,8 @@ int xmss_core_keypair(xmss_params *params,
 
     if (params->autoreserve > 0) {
         // /* Fast forward the bds state autoreserve times for reservation function and
-        // store this in bds_next */
-        bulk_bds_next(params, sk, 0, params->autoreserve+1, params->index_bytes + 4*params->n, 1);
+        // store this in bds_reserved */
+        bulk_bds_reserved(params, sk, 0, params->autoreserve+1, params->index_bytes + 4*params->n, 1);
     }
     
     return 0;
@@ -1479,7 +1479,7 @@ int xmssmt_core_keypair(xmss_params *params,
     ull_to_bytes(sk + params->sk_bytes, params->index_bytes, 0);
 
     if (params->autoreserve > 0) {
-        bulk_bds_next(params, sk, 0, params->autoreserve+1, params->index_bytes + 4*params->n, 1);
+        bulk_bds_reserved(params, sk, 0, params->autoreserve+1, params->index_bytes + 4*params->n, 1);
         bulk_NEXT0_tree(params, sk, 0, params->autoreserve+1);
     }
 
@@ -1655,9 +1655,9 @@ int xmssmt_core_sign(xmss_params *params,
         }
         else {
             unsigned long bds_idx = bytes_to_ull(sk + params->sk_bytes, params->index_bytes);
-            unsigned long bds_next_idx = bytes_to_ull(sk + params->sk_bytes + params->index_bytes, params->index_bytes);
+            unsigned long bds_reserved_idx = bytes_to_ull(sk + params->sk_bytes + params->index_bytes, params->index_bytes);
             // update NEXT_0 if we haven't just reserved yet
-            if (bds_idx < bds_next_idx || (idx % (params->autoreserve+1) > 0 && bds_idx == bds_next_idx)) {
+            if (bds_idx < bds_reserved_idx || (idx % (params->autoreserve+1) > 0 && bds_idx == bds_reserved_idx)) {
                 bds_state_update(params, &states[params->d], sk_seed, pub_seed, addr);
             }
         }

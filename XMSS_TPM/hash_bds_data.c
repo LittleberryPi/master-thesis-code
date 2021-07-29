@@ -94,7 +94,7 @@ void hmac_bds_data( const xmss_params *params, const unsigned char *seed,
 void hmac_all_bds_data(const xmss_params *params, unsigned char *sk, unsigned char *sk_seed,
                         unsigned char *hmac_out, int update_bds_hmac, int update_wots_hmac) {
     /* HMAC the BDS data layers */
-    unsigned int bds_holder_len = params->bds_next_bytes + 8;
+    unsigned int bds_holder_len = params->bds_state_bytes + 8;
     unsigned int added_to_hmac = 0;
     unsigned char *bds_holder = NULL;
     uint64_t max_idx = 0;
@@ -103,7 +103,7 @@ void hmac_all_bds_data(const xmss_params *params, unsigned char *sk, unsigned ch
     if (update_bds_hmac) {
         bds_holder = malloc(bds_holder_len);
         for (unsigned int i = 0; i < params->d; i++) {
-            memcpy(bds_holder, sk+(i*params->bds_next_bytes), params->bds_next_bytes);
+            memcpy(bds_holder, sk+(i*params->bds_state_bytes), params->bds_state_bytes);
             if (i == 0)
                 max_idx = params->reserve_count;
             else {
@@ -111,7 +111,7 @@ void hmac_all_bds_data(const xmss_params *params, unsigned char *sk, unsigned ch
                 max_idx = (idx_tree+1) * (1ULL << (params->tree_height * (i+1)));
             } 
             ull_to_bytes(max_idx_bytes, 8, max_idx);
-            memcpy(bds_holder+params->bds_next_bytes, max_idx_bytes, 8);
+            memcpy(bds_holder+params->bds_state_bytes, max_idx_bytes, 8);
             hmac_bds_data(params, sk_seed, bds_holder, bds_holder_len, hmac_out);
             hmac_out += params->n;
             added_to_hmac += params->n;
@@ -126,15 +126,15 @@ void hmac_all_bds_data(const xmss_params *params, unsigned char *sk, unsigned ch
     /* If we have more than 1 tree layer */
     if (params->d > 1) {
         /* HMAC the BDS NEXT data */
-        unsigned int bds_NEXT_layer_addr = params->d * params->bds_next_bytes;
-        bds_holder_len = ((params->d - 1) * params->bds_next_bytes) + 8;
+        unsigned int bds_NEXT_layer_addr = params->d * params->bds_state_bytes;
+        bds_holder_len = ((params->d - 1) * params->bds_state_bytes) + 8;
         unsigned char *bds_holder = malloc(bds_holder_len);
         max_idx = params->reserve_count;
         ull_to_bytes(max_idx_bytes, 8, max_idx);
         for (unsigned int i = 0; i < params->d-1; i++) {
-            memcpy(bds_holder+(i*params->bds_next_bytes), sk+bds_NEXT_layer_addr+i*params->bds_next_bytes, params->bds_next_bytes);
+            memcpy(bds_holder+(i*params->bds_state_bytes), sk+bds_NEXT_layer_addr+i*params->bds_state_bytes, params->bds_state_bytes);
         }
-        memcpy(bds_holder+(params->d-1)*params->bds_next_bytes, max_idx_bytes, 8);
+        memcpy(bds_holder+(params->d-1)*params->bds_state_bytes, max_idx_bytes, 8);
         hmac_bds_data(params, sk_seed, bds_holder, bds_holder_len, hmac_out);
         hmac_out += params->n;
         added_to_hmac += params->n;
@@ -142,7 +142,7 @@ void hmac_all_bds_data(const xmss_params *params, unsigned char *sk, unsigned ch
 
         /* HMAC the WOTS sigs */
         if (update_wots_hmac) {
-            unsigned int wots_sigs_addr = (2*params->d - 1) * params->bds_next_bytes;
+            unsigned int wots_sigs_addr = (2*params->d - 1) * params->bds_state_bytes;
             bds_holder_len = params->wots_sig_bytes + 8;
             bds_holder = malloc(bds_holder_len);
             for (unsigned int i = 0; i < params->d-1; i++) {
@@ -164,9 +164,9 @@ void hmac_all_bds_data(const xmss_params *params, unsigned char *sk, unsigned ch
 
     /* HMAC the BDS next data */
     if (params->autoreserve > 0) {
-        unsigned int bds_next_idx_addr = params->sk_bytes-(params->index_bytes + 4*params->n) + params->index_bytes;
-        unsigned int total_bds_next_size = params->index_bytes + params->bds_next_bytes;
-        hmac_bds_data(params, sk_seed, sk+bds_next_idx_addr, total_bds_next_size, hmac_out);
+        unsigned int bds_reserved_idx_addr = params->sk_bytes-(params->index_bytes + 4*params->n) + params->index_bytes;
+        unsigned int total_bds_reserved_size = params->index_bytes + params->bds_state_bytes;
+        hmac_bds_data(params, sk_seed, sk+bds_reserved_idx_addr, total_bds_reserved_size, hmac_out);
     }
 
     free(max_idx_bytes);

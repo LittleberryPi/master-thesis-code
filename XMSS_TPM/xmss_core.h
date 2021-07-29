@@ -16,7 +16,7 @@ unsigned long long xmss_xmssmt_core_sk_bytes(const xmss_params *params);
  * Given a set of parameters, this function returns the the bds NEXT size of the 
  * bottom layer
  */
-unsigned long long xmss_xmssmt_core_bds_next_bytes(const xmss_params *params);
+unsigned long long xmss_xmssmt_core_bds_state_bytes(const xmss_params *params);
 
 
 /* Recover the BDS state for a whole XMSS(^MT) tree */

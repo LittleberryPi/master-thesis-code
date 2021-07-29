@@ -221,7 +221,7 @@ int xmss_reserve_signature(xmss_params *params, unsigned sigs_to_reserve,
 
     params->reserve_count = new_reserve_count;
 
-    /* Update the bds_next data in NV memory */
+    /* Update the bds_reserved data in NV memory */
     BDS_RESERVE(params, sk);
 
     return sigs_reserved;
