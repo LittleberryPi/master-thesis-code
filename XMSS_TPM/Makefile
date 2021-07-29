@@ -4,7 +4,7 @@ LDLIBS = -lcrypto
 
 # TPM
 CFLAGS += -DTPM_POSIX -DTPM_TPM20
-INCLUDES += -I/<directory to IBM TSS library, for example: /home/user/ibmtss1.6.0/utils>
+INCLUDES += -I<directory to IBM TSS library, for example: /home/user/ibmtss1.6.0/utils>
 # link - common flags flags TSS library and applications
 LDFLAGS += -L<directory to IBM TSS library, for example: /home/user/ibmtss1.6.0/utils>
 # hardening flags for linking executables
