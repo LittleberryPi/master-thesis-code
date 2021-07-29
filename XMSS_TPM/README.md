@@ -1,5 +1,5 @@
 # XMSS secure state handling
-This repository is an extension of the [XMSS reference code](https://github.com/XMSS/xmss-reference). The code is extended with a reservation function (https://eprint.iacr.org/2016/357.pdf), a linkage to a TPM and a recovery option for the BDS data. In order to communicate with the TPM, code from the [IBM TSS 1.6.0 library](https://sourceforge.net/projects/ibmtpm20tss/) was used. The library is not included in this repository. An example of how to code can be run is seen in test_script.sh.
+This repository is an extension of the [XMSS reference code](https://github.com/XMSS/xmss-reference). The code is extended with a reservation function (https://eprint.iacr.org/2016/357.pdf), a linkage to a TPM and a recovery option for the BDS data. In order to communicate with the TPM, code from the [IBM TSS 1.6.0 library](https://sourceforge.net/projects/ibmtpm20tss/) was used. The library is not included in this repository and should be downloaded separately. In order to use the Makefile, one has to modify the paths to the IBM TSS library. An example of how to code can be run is seen in test_script.sh.
 
 # XMSS reference code [![Build Status](https://travis-ci.org/XMSS/xmss-reference.svg?branch=master)](https://travis-ci.org/XMSS/xmss-reference) (Original README.md)
 
